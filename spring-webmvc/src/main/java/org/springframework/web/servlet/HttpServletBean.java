@@ -144,18 +144,25 @@ public abstract class HttpServletBean extends HttpServlet implements Environment
 	 * invoke subclass initialization.
 	 * @throws ServletException if bean properties are invalid (or required
 	 * properties are missing), or if subclass initialization fails.
+	 * 将配置参数映射到此servlet的bean属性，并调用子类初始化。
+	 * 如果 bean 配置不合法（或者需要的参数丢失）或者子类初始化发生错误，那么就会抛出 ServletException 异常
 	 */
 	@Override
 	public final void init() throws ServletException {
 
 		// Set bean properties from init parameters.
+		// 从init参数设置bean属性。
+		// 获得web.xml中的contextConfigLocation配置属性，就是spring MVC的配置文件
 		PropertyValues pvs = new ServletConfigPropertyValues(getServletConfig(), this.requiredProperties);
 		if (!pvs.isEmpty()) {
 			try {
+				// 获取服务器的各种信息
 				BeanWrapper bw = PropertyAccessorFactory.forBeanPropertyAccess(this);
 				ResourceLoader resourceLoader = new ServletContextResourceLoader(getServletContext());
 				bw.registerCustomEditor(Resource.class, new ResourceEditor(resourceLoader, getEnvironment()));
+				// 模板方法，可以在子类中调用，做一些初始化工作，bw代表DispatcherServelt
 				initBeanWrapper(bw);
+				//将配置的初始化值设置到DispatcherServlet中
 				bw.setPropertyValues(pvs, true);
 			}
 			catch (BeansException ex) {

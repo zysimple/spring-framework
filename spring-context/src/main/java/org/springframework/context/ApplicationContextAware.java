@@ -70,6 +70,8 @@ public interface ApplicationContextAware extends Aware {
 	 * @throws ApplicationContextException in case of context initialization errors
 	 * @throws BeansException if thrown by application context methods
 	 * @see org.springframework.beans.factory.BeanInitializationException
+	 * 设置运行对象的应用上下文
+	 * 当类实现这个接口后，这个类可以获取ApplicationContext中所有的bean，也就是说这个类可以直接获取Spring配置文件中所有有引用到的bean对象
 	 */
 	void setApplicationContext(ApplicationContext applicationContext) throws BeansException;
 

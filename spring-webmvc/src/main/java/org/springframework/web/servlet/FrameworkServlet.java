@@ -517,6 +517,7 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 	/**
 	 * Overridden method of {@link HttpServletBean}, invoked after any bean properties
 	 * have been set. Creates this servlet's WebApplicationContext.
+	 * HttpServlet类的模板方法, 在init方法中调用
 	 */
 	@Override
 	protected final void initServletBean() throws ServletException {
@@ -527,6 +528,7 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 		long startTime = System.currentTimeMillis();
 
 		try {
+			//初始化 webApplicationContext
 			this.webApplicationContext = initWebApplicationContext();
 			initFrameworkServlet();
 		}
@@ -990,19 +992,22 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 
 		long startTime = System.currentTimeMillis();
 		Throwable failureCause = null;
-
+		// 获取 LocaleContextHolder 中原来保存的 LocaleContext
 		LocaleContext previousLocaleContext = LocaleContextHolder.getLocaleContext();
+		// 获取当前请求的 LocaleContext
 		LocaleContext localeContext = buildLocaleContext(request);
-
+		// 获取 RequestContextHolder 中原来保存的 RequestAttributes
 		RequestAttributes previousAttributes = RequestContextHolder.getRequestAttributes();
+		// 获取当前请求的 ServletRequestAttributes
 		ServletRequestAttributes requestAttributes = buildRequestAttributes(request, response, previousAttributes);
 
 		WebAsyncManager asyncManager = WebAsyncUtils.getAsyncManager(request);
 		asyncManager.registerCallableInterceptor(FrameworkServlet.class.getName(), new RequestBindingInterceptor());
-
+		// 将当前请求的 LocaleContext 和 ServletRequestAttributes 设置到 LocaleContextHolder 和 RequestContextHolder
 		initContextHolders(request, localeContext, requestAttributes);
 
 		try {
+			// 实际处理请求的入口，这是一个模板方法，在 Dispatcher 类中才有具体实现
 			doService(request, response);
 		}
 		catch (ServletException | IOException ex) {
@@ -1015,11 +1020,13 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 		}
 
 		finally {
+			// 将 previousLocaleContext，previousAttributes 恢复到 LocaleContextHolder 和 RequestContextHolder 中
 			resetContextHolders(request, previousLocaleContext, previousAttributes);
 			if (requestAttributes != null) {
 				requestAttributes.requestCompleted();
 			}
 			logResult(request, response, failureCause, asyncManager);
+			// 发布了一个 ServletRequestHandledEvent 类型的消息
 			publishRequestHandledEvent(request, response, startTime, failureCause);
 		}
 	}

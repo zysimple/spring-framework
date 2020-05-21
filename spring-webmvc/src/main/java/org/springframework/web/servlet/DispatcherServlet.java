@@ -492,6 +492,7 @@ public class DispatcherServlet extends FrameworkServlet {
 	 */
 	@Override
 	protected void onRefresh(ApplicationContext context) {
+		// 初始化9大组件
 		initStrategies(context);
 	}
 
@@ -500,14 +501,24 @@ public class DispatcherServlet extends FrameworkServlet {
 	 * <p>May be overridden in subclasses in order to initialize further strategy objects.
 	 */
 	protected void initStrategies(ApplicationContext context) {
+		/**
+		 * 初始化Multipart上传数据解析器
+		 * 用于处理上传请求。处理方法是将普通的request包装成MultipartHttpServletRequest，后者可以直接调用getFile方法获取File，
+		 * 如果上传多个文件，还可以调用getFileMap得到FileName->File结构的Map。此组件中一共有三个方法，作用分别是判断是不是上传请求，
+		 * 将request包装成MultipartHttpServletRequest、处理完后清理上传过程中产生的临时资源。
+		 */
 		initMultipartResolver(context);
+		// 初始化Locale地区解析器,处理本地化/国际化语言相关,结合上下文和当前请求分析得到应该使用的Locale地区
 		initLocaleResolver(context);
+		// 初始化主题解析器, 处理UI主题(look and feel)相关
 		initThemeResolver(context);
+		// 根据 request 找到对应的处理器 Handler 和 Interceptors. 内部只有一个方法
 		initHandlerMappings(context);
 		initHandlerAdapters(context);
 		initHandlerExceptionResolvers(context);
 		initRequestToViewNameTranslator(context);
 		initViewResolvers(context);
+		// 用来管理FlashMap的，FlashMap主要用在redirect中传递参数
 		initFlashMapManager(context);
 	}
 
@@ -940,6 +951,7 @@ public class DispatcherServlet extends FrameworkServlet {
 		}
 
 		try {
+			// 调用 doDispatch 方法
 			doDispatch(request, response);
 		}
 		finally {
@@ -1009,20 +1021,21 @@ public class DispatcherServlet extends FrameworkServlet {
 			Exception dispatchException = null;
 
 			try {
+				// 检查是不是上传请求
 				processedRequest = checkMultipart(request);
 				multipartRequestParsed = (processedRequest != request);
 
-				// Determine handler for the current request.
+				// Determine handler for the current request. 根据 request 找到 Handler
 				mappedHandler = getHandler(processedRequest);
 				if (mappedHandler == null) {
 					noHandlerFound(processedRequest, response);
 					return;
 				}
 
-				// Determine handler adapter for the current request.
+				// Determine handler adapter for the current request. 根据 Handler 找到对应的 HandlerAdapter
 				HandlerAdapter ha = getHandlerAdapter(mappedHandler.getHandler());
 
-				// Process last-modified header, if supported by the handler.
+				// Process last-modified header, if supported by the handler. 处理 GET 、 HEAD 请求的 LastModified
 				String method = request.getMethod();
 				boolean isGet = "GET".equals(method);
 				if (isGet || "HEAD".equals(method)) {
@@ -1032,18 +1045,21 @@ public class DispatcherServlet extends FrameworkServlet {
 					}
 				}
 
+				// 执行相应的 Interceptor 的 preHandle
 				if (!mappedHandler.applyPreHandle(processedRequest, response)) {
 					return;
 				}
 
-				// Actually invoke the handler.
+				// Actually invoke the handler. 使用 Handler 处理请求
 				mv = ha.handle(processedRequest, response, mappedHandler.getHandler());
 
+				// 如果需要异步处理, 直接返回
 				if (asyncManager.isConcurrentHandlingStarted()) {
 					return;
 				}
-
+				// 当 view 为空时，根据 request 设置默认 view
 				applyDefaultViewName(processedRequest, mv);
+				// 执行相应 Interceptor 的 postHandler
 				mappedHandler.applyPostHandle(processedRequest, response, mv);
 			}
 			catch (Exception ex) {
@@ -1054,6 +1070,7 @@ public class DispatcherServlet extends FrameworkServlet {
 				// making them available for @ExceptionHandler methods and other scenarios.
 				dispatchException = new NestedServletException("Handler dispatch failed", err);
 			}
+			// 调用 processDispatchResult 方法处理上面处理之后的结果（包括处理异常，渲染页面，发出完成通知触发 Interceptor 的 afterCompletion）
 			processDispatchResult(processedRequest, response, mappedHandler, mv, dispatchException);
 		}
 		catch (Exception ex) {
@@ -1064,6 +1081,7 @@ public class DispatcherServlet extends FrameworkServlet {
 					new NestedServletException("Handler processing failed", err));
 		}
 		finally {
+			// 判断是否执行异步请求
 			if (asyncManager.isConcurrentHandlingStarted()) {
 				// Instead of postHandle and afterCompletion
 				if (mappedHandler != null) {
@@ -1071,7 +1089,7 @@ public class DispatcherServlet extends FrameworkServlet {
 				}
 			}
 			else {
-				// Clean up any resources used by a multipart request.
+				// Clean up any resources used by a multipart request. 删除上传请求的资源
 				if (multipartRequestParsed) {
 					cleanupMultipart(processedRequest);
 				}

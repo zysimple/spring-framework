@@ -42,6 +42,7 @@ public interface EnvironmentCapable {
 
 	/**
 	 * Return the {@link Environment} associated with this component.
+	 * 返回组件的环境，可能返回 null 或者默认环境
 	 */
 	Environment getEnvironment();
 

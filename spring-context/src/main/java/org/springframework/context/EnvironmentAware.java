@@ -31,6 +31,7 @@ public interface EnvironmentAware extends Aware {
 
 	/**
 	 * Set the {@code Environment} that this component runs in.
+	 * 设置组件的运行环境
 	 */
 	void setEnvironment(Environment environment);
 
