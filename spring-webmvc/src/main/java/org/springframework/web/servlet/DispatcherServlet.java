@@ -281,8 +281,8 @@ public class DispatcherServlet extends FrameworkServlet {
 	private static final Properties defaultStrategies;
 
 	static {
-		// Load default strategy implementations from properties file.
-		// This is currently strictly internal and not meant to be customized
+		// Load default strategy implementations from properties file. 加载properties文件配置的默认策略实现类
+		// This is currently strictly internal and not meant to be customized 这个默认策略不能自定义
 		// by application developers.
 		try {
 			ClassPathResource resource = new ClassPathResource(DEFAULT_STRATEGIES_PATH, DispatcherServlet.class);
@@ -604,29 +604,46 @@ public class DispatcherServlet extends FrameworkServlet {
 	private void initHandlerMappings(ApplicationContext context) {
 		this.handlerMappings = null;
 
+		/**
+		 * detectAllHandlerMappings变量默认为true，所以在初始化HandlerMapping接口默认实现类的时候，
+		 * 会把上下文中所有HandlerMapping类型的Bean都注册在handlerMappings这个List变量中。
+		 * 如果你手工将其设置为false，那么将尝试获取名为handlerMapping的Bean，新建一个只有一个元素的List，将其赋给handlerMappings。
+		 * 如果经过上面的过程，handlerMappings变量仍为空，那么说明你没有在上下文中提供自己HandlerMapping类型的Bean定义。
+		 * 此时，SpringMVC将采用默认初始化策略来初始化handlerMappings。
+		 */
 		if (this.detectAllHandlerMappings) {
 			// Find all HandlerMappings in the ApplicationContext, including ancestor contexts.
+			/**
+			 * 在ApplicationContext中找到所有HandlerMappings，包括父上下文, 下面是自己启动SpringBoot运行下面BeanFactoryUtils方法找到的
+			 * requestMappingHandlerMapping org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping@3f4f70ca
+			 * beanNameHandlerMapping 		 org.springframework.web.servlet.handler.BeanNameUrlHandlerMapping@5ad4502b
+			 * resourceHandlerMapping 		 org.springframework.web.servlet.handler.SimpleUrlHandlerMapping@76f4011b
+			 * welcomePageHandlerMapping	 org.springframework.boot.autoconfigure.web.servlet.WelcomePageHandlerMapping@269d1f84
+			 */
 			Map<String, HandlerMapping> matchingBeans =
 					BeanFactoryUtils.beansOfTypeIncludingAncestors(context, HandlerMapping.class, true, false);
 			if (!matchingBeans.isEmpty()) {
 				this.handlerMappings = new ArrayList<>(matchingBeans.values());
-				// We keep HandlerMappings in sorted order.
+				// We keep HandlerMappings in sorted order. 根据@Order注解排序
 				AnnotationAwareOrderComparator.sort(this.handlerMappings);
 			}
 		}
 		else {
 			try {
+				// HANDLER_MAPPING_BEAN_NAME->handlerMapping, 尝试获取名为handlerMapping的Bean，新建一个只有一个元素的List，将其赋给handlerMappings
+				// 如果没有的话会抛异常, No bean named 'handlerMapping' available
 				HandlerMapping hm = context.getBean(HANDLER_MAPPING_BEAN_NAME, HandlerMapping.class);
 				this.handlerMappings = Collections.singletonList(hm);
 			}
 			catch (NoSuchBeanDefinitionException ex) {
-				// Ignore, we'll add a default HandlerMapping later.
+				// Ignore, we'll add a default HandlerMapping later. 不处理上面抛出来的异常
 			}
 		}
 
-		// Ensure we have at least one HandlerMapping, by registering
-		// a default HandlerMapping if no other mappings are found.
+		// Ensure we have at least one HandlerMapping, by registering 通过注册确保至少有一个HandlerMapping
+		// a default HandlerMapping if no other mappings are found. 如果未找到其他映射，则为默认的HandlerMapping
 		if (this.handlerMappings == null) {
+			// 默认的HandlerMapping -> BeanNameUrlHandlerMapping、RequestMappingHandlerMapping、RouterFunctionMapping
 			this.handlerMappings = getDefaultStrategies(context, HandlerMapping.class);
 			if (logger.isTraceEnabled()) {
 				logger.trace("No HandlerMappings declared for servlet '" + getServletName() +
@@ -643,6 +660,14 @@ public class DispatcherServlet extends FrameworkServlet {
 	private void initHandlerAdapters(ApplicationContext context) {
 		this.handlerAdapters = null;
 
+		/**
+		 * detectAllHandlerMappings变量默认为true，所以在初始化HandlerAdapter接口默认实现类的时候，
+		 * 会把上下文中所有HandlerAdapter类型的Bean都注册在handlerAdapters这个List变量中。
+		 * 如果你手工将其设置为false，那么将尝试获取名为handlerAdapter的Bean，新建一个只有一个元素的List，将其赋给handlerAdapters
+		 * 如果经过上面的过程，handlerAdapters变量仍为空，那么说明你没有在上下文中提供自己HandlerAdapter类型的Bean定义。
+		 * 此时，SpringMVC将采用默认初始化策略来初始化handlerAdapters。
+		 * 初始化过程和initHandlerMappings()是一样的
+		 */
 		if (this.detectAllHandlerAdapters) {
 			// Find all HandlerAdapters in the ApplicationContext, including ancestor contexts.
 			Map<String, HandlerAdapter> matchingBeans =
@@ -866,10 +891,12 @@ public class DispatcherServlet extends FrameworkServlet {
 	 * @param context the current WebApplicationContext
 	 * @param strategyInterface the strategy interface
 	 * @return the List of corresponding strategy objects
+	 * 为给定的策略接口创建默认的策略对象列表, 默认的实现类的ClassName是保存在DispatcherServlet.properties里面
 	 */
 	@SuppressWarnings("unchecked")
 	protected <T> List<T> getDefaultStrategies(ApplicationContext context, Class<T> strategyInterface) {
 		String key = strategyInterface.getName();
+		// defaultStrategies是一个Properties, 里面加载了Spring配置的默认策略实现类
 		String value = defaultStrategies.getProperty(key);
 		if (value != null) {
 			String[] classNames = StringUtils.commaDelimitedListToStringArray(value);

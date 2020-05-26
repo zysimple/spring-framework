@@ -558,12 +558,17 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 	 * @see #FrameworkServlet(WebApplicationContext)
 	 * @see #setContextClass
 	 * @see #setContextConfigLocation
+	 * 封装了建立Spring容器上下文的整个过程
+	 * 该函数的主要工作就是创建或刷新 WebApplicationContext 实例并对 servlet 功能所使用的变量进行初始化
 	 */
 	protected WebApplicationContext initWebApplicationContext() {
+		// 获取由ContextLoaderListener初始化并注册在ServletContext中的根上下文，记为rootContext, 就是从根容器开始查找
 		WebApplicationContext rootContext =
 				WebApplicationContextUtils.getWebApplicationContext(getServletContext());
 		WebApplicationContext wac = null;
 
+		// 果webApplicationContext已经不为空，表示这个Servlet类是通过编程式注册到容器中的（Servlet 3.0+中的ServletContext.addServlet() ），上下文也由编程式传入。
+		// 若这个传入的上下文还没被初始化，将rootContext上下文设置为它的父上下文，然后将其初始化，否则直接使用
 		if (this.webApplicationContext != null) {
 			// A context instance was injected at construction time -> use it
 			wac = this.webApplicationContext;
@@ -581,6 +586,11 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 				}
 			}
 		}
+		/**
+		 * 通过wac变量的引用是否为null，判断第2步中是否已经完成上下文的设置（即上下文是否已经用编程式方式传入），
+		 * 如果wac==null成立，说明该Servlet不是由编程式注册到容器中的。此时以contextAttribute属性的值为键，
+		 * 在ServletContext中查找上下文，查找得到，说明上下文已经以别的方式初始化并注册在contextAttribute下，直接使用。
+		 */
 		if (wac == null) {
 			// No context instance was injected at construction time -> see if one
 			// has been registered in the servlet context. If one exists, it is assumed
@@ -588,11 +598,20 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 			// user has performed any initialization such as setting the context id
 			wac = findWebApplicationContext();
 		}
+
+		/**
+		 * 检查wac变量的引用是否为null，如果wac==null成立，说明2、3两步中的上下文初始化策略都没成功，此时调用createWebApplicationContext(rootContext)，
+		 * 建立一个全新的以rootContext为父上下文的上下文，作为SpringMVC配置元素的容器上下文。大多数情况下我们所使用的上下文，就是这个新建的上下文。
+		 */
 		if (wac == null) {
 			// No context instance is defined for this servlet -> create a local one
 			wac = createWebApplicationContext(rootContext);
 		}
 
+		/**
+		 * 以上三种初始化上下文的策略，都会回调onRefresh(ApplicationContext context)方法（回调的方式根据不同策略有不同），onRefresh方法在DispatcherServlet类中被覆写，
+		 * 以上面得到的上下文为依托，完成SpringMVC中默认实现类的初始化。
+		 */
 		if (!this.refreshEventReceived) {
 			// Either the context is not a ConfigurableApplicationContext with refresh
 			// support or the context injected at construction time had already been
@@ -602,12 +621,22 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 			}
 		}
 
+		/**
+		 * 最后，将这个上下文发布到ServletContext中，也就是将上下文以一个和Servlet类在web.xml中注册名字有关的值为键，设置为ServletContext的一个属性。
+		 * 你可以通过改变publishContext的值来决定是否发布到ServletContext中，默认为true。
+		 */
 		if (this.publishContext) {
 			// Publish the context as a servlet context attribute.
 			String attrName = getServletContextAttributeName();
 			getServletContext().setAttribute(attrName, wac);
 		}
 
+		/**
+		 * 以上面6点跟踪FrameworkServlet类中的代码，可以比较清晰的了解到整个容器上下文的建立过程，也就能够领会到FrameworkServlet类的设计目的，
+		 * 它是用来建立一个和Servlet关联的Spring容器上下文，并将其注册到ServletContext中的。跳脱开SpringMVC体系，我们也能通过继承FrameworkServlet类，
+		 * 得到与Spring容器整合的好处，FrameworkServlet和HttpServletBean一样，是一个可以独立使用的类。整个SpringMVC设计中，处处体现开闭原则，
+		 * 这里显然也是其中一点。
+		 */
 		return wac;
 	}
 

@@ -146,18 +146,20 @@ public abstract class HttpServletBean extends HttpServlet implements Environment
 	 * properties are missing), or if subclass initialization fails.
 	 * 将配置参数映射到此servlet的bean属性，并调用子类初始化。
 	 * 如果 bean 配置不合法（或者需要的参数丢失）或者子类初始化发生错误，那么就会抛出 ServletException 异常
+	 * 主要功能: 封装参数、转换成 BeanWrapper 实例、注册自定义属性编辑器、属性注入，以及关键的初始化 servletBean
 	 */
 	@Override
 	public final void init() throws ServletException {
 
 		// Set bean properties from init parameters.
-		// 从init参数设置bean属性。
-		// 获得web.xml中的contextConfigLocation配置属性，就是spring MVC的配置文件
+		// 从init参数设置bean属性. 解析 init-param 并封装到 pvs 变量中
+		// 获得web.xml中的contextConfigLocation配置属性，就是spring MVC的配置文件, 然后获取配置文件里面的内容
 		PropertyValues pvs = new ServletConfigPropertyValues(getServletConfig(), this.requiredProperties);
 		if (!pvs.isEmpty()) {
 			try {
-				// 获取服务器的各种信息
+				// 将当前的这个 Servlet 类转换为一个 BeanWrapper，从而能够以 Spring 的方式对 init—param 的值注入
 				BeanWrapper bw = PropertyAccessorFactory.forBeanPropertyAccess(this);
+				// 注册自定义属性编辑器，一旦遇到 Resource 类型的属性将会使用 ResourceEditor 进行解析
 				ResourceLoader resourceLoader = new ServletContextResourceLoader(getServletContext());
 				bw.registerCustomEditor(Resource.class, new ResourceEditor(resourceLoader, getEnvironment()));
 				// 模板方法，可以在子类中调用，做一些初始化工作，bw代表DispatcherServelt
@@ -173,7 +175,7 @@ public abstract class HttpServletBean extends HttpServlet implements Environment
 			}
 		}
 
-		// Let subclasses do whatever initialization they like.
+		// Let subclasses do whatever initialization they like. 初始化 servletBean(让子类实现，这里它的实现子类是 FrameworkServlet)
 		initServletBean();
 	}
 
