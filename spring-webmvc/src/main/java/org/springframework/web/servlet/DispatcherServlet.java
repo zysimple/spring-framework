@@ -278,6 +278,7 @@ public class DispatcherServlet extends FrameworkServlet {
 	/** Additional logger to use when no mapped handler is found for a request. */
 	protected static final Log pageNotFoundLogger = LogFactory.getLog(PAGE_NOT_FOUND_LOG_CATEGORY);
 
+	/** 默认策略列表 **/
 	private static final Properties defaultStrategies;
 
 	static {
@@ -499,6 +500,10 @@ public class DispatcherServlet extends FrameworkServlet {
 	/**
 	 * Initialize the strategy objects that this servlet uses.
 	 * <p>May be overridden in subclasses in order to initialize further strategy objects.
+	 * 初始化:
+	 * 	1. 寻找用户自定义配置
+	 *  2. 没有找到，使用默认配置
+	 *  如果没有找到用户配置的 bean，那么它将会使用默认的初始化策略: getDefaultStrategies 方法
 	 */
 	protected void initStrategies(ApplicationContext context) {
 		/**
@@ -514,9 +519,13 @@ public class DispatcherServlet extends FrameworkServlet {
 		initThemeResolver(context);
 		// 根据 request 找到对应的处理器 Handler 和 Interceptors. 内部只有一个方法
 		initHandlerMappings(context);
+		// 初始化 HandlerAdapter 处理当前 Http 请求的处理器适配器实现，根据处理器映射返回相应的处理器类型
 		initHandlerAdapters(context);
+		// 初始化 HandlerExceptionResolvers，处理器异常解决器
 		initHandlerExceptionResolvers(context);
+		// 初始化 RequestToViewNameTranslator，处理逻辑视图名称
 		initRequestToViewNameTranslator(context);
+		// 初始化 ViewResolver 选择合适的视图进行渲染
 		initViewResolvers(context);
 		// 用来管理FlashMap的，FlashMap主要用在redirect中传递参数
 		initFlashMapManager(context);
@@ -895,14 +904,16 @@ public class DispatcherServlet extends FrameworkServlet {
 	 */
 	@SuppressWarnings("unchecked")
 	protected <T> List<T> getDefaultStrategies(ApplicationContext context, Class<T> strategyInterface) {
+		// 策略接口名称
 		String key = strategyInterface.getName();
-		// defaultStrategies是一个Properties, 里面加载了Spring配置的默认策略实现类
+		// defaultStrategies是一个Properties, 里面加载了key接口的默认策略实现类列表
 		String value = defaultStrategies.getProperty(key);
 		if (value != null) {
 			String[] classNames = StringUtils.commaDelimitedListToStringArray(value);
 			List<T> strategies = new ArrayList<>(classNames.length);
 			for (String className : classNames) {
 				try {
+					// 实例化
 					Class<?> clazz = ClassUtils.forName(className, DispatcherServlet.class.getClassLoader());
 					Object strategy = createDefaultStrategy(context, clazz);
 					strategies.add((T) strategy);
@@ -950,7 +961,12 @@ public class DispatcherServlet extends FrameworkServlet {
 
 		// Keep a snapshot of the request attributes in case of an include,
 		// to be able to restore the original attributes after the include.
+		// 暂存请求参数, 以便恢复
 		Map<String, Object> attributesSnapshot = null;
+		/**
+		 * 判断是不是include请求, 如果是则对request的Attribute做个快照,
+		 * 等doDispatch处理完之后(如果不是异步调用且未完成)进行还原,在做完快照后又对request设置了一些属性
+		 */
 		if (WebUtils.isIncludeRequest(request)) {
 			attributesSnapshot = new HashMap<>();
 			Enumeration<?> attrNames = request.getAttributeNames();
@@ -963,10 +979,11 @@ public class DispatcherServlet extends FrameworkServlet {
 		}
 
 		// Make framework objects available to handlers and view objects.
-		request.setAttribute(WEB_APPLICATION_CONTEXT_ATTRIBUTE, getWebApplicationContext());
-		request.setAttribute(LOCALE_RESOLVER_ATTRIBUTE, this.localeResolver);
-		request.setAttribute(THEME_RESOLVER_ATTRIBUTE, this.themeResolver);
-		request.setAttribute(THEME_SOURCE_ATTRIBUTE, getThemeSource());
+		// 对request设置一些属性
+		request.setAttribute(WEB_APPLICATION_CONTEXT_ATTRIBUTE, getWebApplicationContext());	// webApplicationContext
+		request.setAttribute(LOCALE_RESOLVER_ATTRIBUTE, this.localeResolver);					// localeResolver
+		request.setAttribute(THEME_RESOLVER_ATTRIBUTE, this.themeResolver);						// theme-Resolver
+		request.setAttribute(THEME_SOURCE_ATTRIBUTE, getThemeSource());							// themeSource
 
 		if (this.flashMapManager != null) {
 			FlashMap inputFlashMap = this.flashMapManager.retrieveAndUpdate(request, response);
@@ -984,6 +1001,7 @@ public class DispatcherServlet extends FrameworkServlet {
 		finally {
 			if (!WebAsyncUtils.getAsyncManager(request).isConcurrentHandlingStarted()) {
 				// Restore the original attribute snapshot, in case of an include.
+				// 还原request快照的属性
 				if (attributesSnapshot != null) {
 					restoreAttributesAfterInclude(request, attributesSnapshot);
 				}
@@ -1035,9 +1053,18 @@ public class DispatcherServlet extends FrameworkServlet {
 	 * @param request current HTTP request
 	 * @param response current HTTP response
 	 * @throws Exception in case of any kind of processing failure
+	 * 1. 寻找处理器 mappedandler
+	 * 2. 根据处理器，寻找对应的适配器 HandlerAdapter
+	 * 3. 激活 handler，调用处理方法
+	 * 4. 返回结果（如果有 mv，进行视图渲染和跳转）
 	 */
 	protected void doDispatch(HttpServletRequest request, HttpServletResponse response) throws Exception {
 		HttpServletRequest processedRequest = request;
+		/**
+		 * 主要负责请求拦截器的执行和处理, 但是它本身不处理请求, 只是将请求分配给链上注册处理器执行,
+		 * 这是职责链实现方式, 减少职责链本身与处理逻辑之间的耦合, 规范了处理流程
+		 * HandlerExecutionChain 维护了 HandlerInterceptor的集合, 可以向其中注册相应的拦截器
+		 */
 		HandlerExecutionChain mappedHandler = null;
 		boolean multipartRequestParsed = false;
 
@@ -1055,11 +1082,12 @@ public class DispatcherServlet extends FrameworkServlet {
 				// Determine handler for the current request. 根据 request 找到 Handler
 				mappedHandler = getHandler(processedRequest);
 				if (mappedHandler == null) {
+					// 没有找到 handler，通过 response 向用户返回错误信息
 					noHandlerFound(processedRequest, response);
 					return;
 				}
 
-				// Determine handler adapter for the current request. 根据 Handler 找到对应的 HandlerAdapter
+				// Determine handler adapter for the current request. 根据 Handler 找到对应的 HandlerAdapter 适配器
 				HandlerAdapter ha = getHandlerAdapter(mappedHandler.getHandler());
 
 				// Process last-modified header, if supported by the handler. 处理 GET 、 HEAD 请求的 LastModified
@@ -1077,14 +1105,14 @@ public class DispatcherServlet extends FrameworkServlet {
 					return;
 				}
 
-				// Actually invoke the handler. 使用 Handler 处理请求
+				// Actually invoke the handler. 真正激活 handler 进行处理，并返回视图
 				mv = ha.handle(processedRequest, response, mappedHandler.getHandler());
 
 				// 如果需要异步处理, 直接返回
 				if (asyncManager.isConcurrentHandlingStarted()) {
 					return;
 				}
-				// 当 view 为空时，根据 request 设置默认 view
+				// 视图名称转换(有可能需要加上前后缀),当 view 为空时，根据 request 设置默认 view
 				applyDefaultViewName(processedRequest, mv);
 				// 执行相应 Interceptor 的 postHandler
 				mappedHandler.applyPostHandle(processedRequest, response, mv);

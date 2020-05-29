@@ -517,7 +517,7 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 	/**
 	 * Overridden method of {@link HttpServletBean}, invoked after any bean properties
 	 * have been set. Creates this servlet's WebApplicationContext.
-	 * HttpServlet类的模板方法, 在init方法中调用
+	 * 该方法是本类的初始化入口方法, 是HttpServlet类的模板方法, 在HttpServlet类的init方法中调用
 	 */
 	@Override
 	protected final void initServletBean() throws ServletException {
@@ -528,8 +528,9 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 		long startTime = System.currentTimeMillis();
 
 		try {
-			//初始化 webApplicationContext
+			// 初始化 webApplicationContext
 			this.webApplicationContext = initWebApplicationContext();
+			// 模板方法, 方便子类可以覆盖然后在里面做一些初始化的工作, 但现在子类并没有使用它
 			initFrameworkServlet();
 		}
 		catch (ServletException | RuntimeException ex) {
@@ -559,10 +560,20 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 	 * @see #setContextClass
 	 * @see #setContextConfigLocation
 	 * 封装了建立Spring容器上下文的整个过程
-	 * 该函数的主要工作就是创建或刷新 WebApplicationContext 实例并对 servlet 功能所使用的变量进行初始化
+	 * 该函数的主要工作:
+	 * 	1. 获取Spring的跟容器rootContext
+	 * 	2. 设置webAppliationContext并根据情况调用onRefresh方法
+	 * 	3. 将webAppliationContext设置到ServletContext中
 	 */
 	protected WebApplicationContext initWebApplicationContext() {
-		// 获取由ContextLoaderListener初始化并注册在ServletContext中的根上下文，记为rootContext, 就是从根容器开始查找
+		/**
+		 * 获取由ContextLoaderListener初始化并注册在ServletContext中的根上下文，记为rootContext, 就是从根容器开始查找,
+		 * 我们最常用到的 spring-mvc，是 spring 容器和 web 容器共存，这时 rootContext 父容器就是 spring 容器,
+		 * 在的 web.xml 配置的监听器 ContextLoaderListener，已经将 Spring 父容器进行了加载,
+		 * 了解到 Spring 父容器，是以 key 值为 : WebApplicationContext.class.getName() + ".ROOT" 保存到 ServletContext 上下文中,
+		 * 可以看出rootContext就是WebApplicationContext
+		 * 实验: 在SpringBoot项目使用(ServletContext) sc.getAttribute(attrName)可以得到一个Spring容器
+		 */
 		WebApplicationContext rootContext =
 				WebApplicationContextUtils.getWebApplicationContext(getServletContext());
 		WebApplicationContext wac = null;
@@ -570,6 +581,7 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 		// 果webApplicationContext已经不为空，表示这个Servlet类是通过编程式注册到容器中的（Servlet 3.0+中的ServletContext.addServlet() ），上下文也由编程式传入。
 		// 若这个传入的上下文还没被初始化，将rootContext上下文设置为它的父上下文，然后将其初始化，否则直接使用
 		if (this.webApplicationContext != null) {
+
 			// A context instance was injected at construction time -> use it
 			wac = this.webApplicationContext;
 			if (wac instanceof ConfigurableWebApplicationContext) {
@@ -582,6 +594,7 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 						// the root application context (if any; may be null) as the parent
 						cwac.setParent(rootContext);
 					}
+					// 刷新上下文环境
 					configureAndRefreshWebApplicationContext(cwac);
 				}
 			}
@@ -590,6 +603,7 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 		 * 通过wac变量的引用是否为null，判断第2步中是否已经完成上下文的设置（即上下文是否已经用编程式方式传入），
 		 * 如果wac==null成立，说明该Servlet不是由编程式注册到容器中的。此时以contextAttribute属性的值为键，
 		 * 在ServletContext中查找上下文，查找得到，说明上下文已经以别的方式初始化并注册在contextAttribute下，直接使用。
+		 * (当webApplicationContext已经存在ServletContext中时,通过配置在Servlet中的contextAttribute获取)
 		 */
 		if (wac == null) {
 			// No context instance was injected at construction time -> see if one
@@ -611,6 +625,7 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 		/**
 		 * 以上三种初始化上下文的策略，都会回调onRefresh(ApplicationContext context)方法（回调的方式根据不同策略有不同），onRefresh方法在DispatcherServlet类中被覆写，
 		 * 以上面得到的上下文为依托，完成SpringMVC中默认实现类的初始化。
+		 *
 		 */
 		if (!this.refreshEventReceived) {
 			// Either the context is not a ConfigurableApplicationContext with refresh
@@ -649,6 +664,8 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 	 * {@code WebApplicationContext} retrieval strategy.
 	 * @return the WebApplicationContext for this servlet, or {@code null} if not found
 	 * @see #getContextAttribute()
+	 * 虽然有默认 key，但用户可以重写初始化逻辑(在 web.xml 文件中设定 servlet 参数 contextAttribute)，
+	 * 使用自己创建的 WebApplicaitonContext，并在 servlet 的配置中通过初始化参数 contextAttribute 指定 key。
 	 */
 	@Nullable
 	protected WebApplicationContext findWebApplicationContext() {
@@ -656,6 +673,7 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 		if (attrName == null) {
 			return null;
 		}
+		// attrName 就是用户在`web.xml` 文件中设定的 `servlet` 参数 `contextAttribute`
 		WebApplicationContext wac =
 				WebApplicationContextUtils.getWebApplicationContext(getServletContext(), attrName);
 		if (wac == null) {
@@ -680,6 +698,8 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 	 * @see org.springframework.web.context.support.XmlWebApplicationContext
 	 */
 	protected WebApplicationContext createWebApplicationContext(@Nullable ApplicationContext parent) {
+		// 允许我们自定义容器的类型，通过 contextClass 属性进行配置
+		// 但是类型必须要继承 ConfigurableWebApplicationContext，不然将会报错
 		Class<?> contextClass = getContextClass();
 		if (!ConfigurableWebApplicationContext.class.isAssignableFrom(contextClass)) {
 			throw new ApplicationContextException(
@@ -687,17 +707,19 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 					"': custom WebApplicationContext class [" + contextClass.getName() +
 					"] is not of type ConfigurableWebApplicationContext");
 		}
+		// 通过反射来创建 contextClass
 		ConfigurableWebApplicationContext wac =
 				(ConfigurableWebApplicationContext) BeanUtils.instantiateClass(contextClass);
 
 		wac.setEnvironment(getEnvironment());
 		wac.setParent(parent);
+		// 获取 contextConfigLocation 属性，配置在 servlet 初始化函数中
 		String configLocation = getContextConfigLocation();
 		if (configLocation != null) {
 			wac.setConfigLocation(configLocation);
 		}
+		// 初始化 Spring 环境包括加载配置环境
 		configureAndRefreshWebApplicationContext(wac);
-
 		return wac;
 	}
 
@@ -729,7 +751,9 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 		}
 
 		postProcessWebApplicationContext(wac);
+		// 遍历 ApplicationContextInitializer，执行 initialize 方法
 		applyInitializers(wac);
+		// 关键的刷新，加载配置文件及整合 parent 到 wac
 		wac.refresh();
 	}
 

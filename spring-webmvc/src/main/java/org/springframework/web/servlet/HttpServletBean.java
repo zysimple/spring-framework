@@ -152,9 +152,17 @@ public abstract class HttpServletBean extends HttpServlet implements Environment
 	public final void init() throws ServletException {
 
 		// Set bean properties from init parameters.
-		// 从init参数设置bean属性. 解析 init-param 并封装到 pvs 变量中
-		// 获得web.xml中的contextConfigLocation配置属性，就是spring MVC的配置文件, 然后获取配置文件里面的内容
+		/**
+		 * 从init参数设置bean属性. 解析 init-param 并封装到 pvs 变量中,
+		 * 这里会获得web.xml中的contextConfigLocation配置属性，就是spring MVC的配置文件, 然后获取配置文件里面的内容,
+		 * requiredProperties为必需参数， 如果没有配置将报异常
+		 *
+		 * 可以看到, 在HttpServletBean的init中, 首先将Servlet中配置的参数使用BeanWrapper(是Spring提供的一个用来操作JavaBean属性的工具,
+		 * 使用它可以直接修改一个对象的属性)设置到DispatcherServlet的相关属性, 然后调用
+		 * 模板方法initServletBean, 子类就通过这个方法初始化
+		 */
 		PropertyValues pvs = new ServletConfigPropertyValues(getServletConfig(), this.requiredProperties);
+
 		if (!pvs.isEmpty()) {
 			try {
 				// 将当前的这个 Servlet 类转换为一个 BeanWrapper，从而能够以 Spring 的方式对 init—param 的值注入
@@ -164,7 +172,7 @@ public abstract class HttpServletBean extends HttpServlet implements Environment
 				bw.registerCustomEditor(Resource.class, new ResourceEditor(resourceLoader, getEnvironment()));
 				// 模板方法，可以在子类中调用，做一些初始化工作，bw代表DispatcherServelt
 				initBeanWrapper(bw);
-				//将配置的初始化值设置到DispatcherServlet中
+				//将配置的初始化值(如contextConfigLocation)设置到DispatcherServlet中
 				bw.setPropertyValues(pvs, true);
 			}
 			catch (BeansException ex) {
@@ -176,6 +184,7 @@ public abstract class HttpServletBean extends HttpServlet implements Environment
 		}
 
 		// Let subclasses do whatever initialization they like. 初始化 servletBean(让子类实现，这里它的实现子类是 FrameworkServlet)
+		// 模板方法, 子类实现, FrameworkServlet实现
 		initServletBean();
 	}
 

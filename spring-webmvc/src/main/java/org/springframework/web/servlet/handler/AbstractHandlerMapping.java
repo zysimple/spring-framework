@@ -407,6 +407,7 @@ public abstract class AbstractHandlerMapping extends WebApplicationObjectSupport
 		}
 
 		// 将配置中的对应拦截器加入到执行链中，以保证这些拦截器可以有效地作用于目标对象
+		// 将适应该 URL 对应拦截器 MappedInterceptor 加入 addInterceptor() 到执行链 HandlerExecutionChain 中
 		HandlerExecutionChain executionChain = getHandlerExecutionChain(handler, request);
 
 		if (logger.isTraceEnabled()) {

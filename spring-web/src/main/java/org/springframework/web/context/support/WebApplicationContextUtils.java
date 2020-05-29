@@ -98,6 +98,7 @@ public abstract class WebApplicationContextUtils {
 	 */
 	@Nullable
 	public static WebApplicationContext getWebApplicationContext(ServletContext sc) {
+		// WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_ATTRIBUTE -> WebApplicationContext.class.getName() + ".ROOT";
 		return getWebApplicationContext(sc, WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_ATTRIBUTE);
 	}
 
