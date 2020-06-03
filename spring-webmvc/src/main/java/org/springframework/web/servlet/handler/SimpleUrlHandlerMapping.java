@@ -55,9 +55,17 @@ import org.springframework.util.CollectionUtils;
  * @see #setMappings
  * @see #setUrlMap
  * @see BeanNameUrlHandlerMapping
+ * 初始方法在initApplicationContext(), 重写了父类的方法,
+ * 如果要使用SimpleUrlHandlerMapping就需要在注册时给它配置urlMap
  */
 public class SimpleUrlHandlerMapping extends AbstractUrlHandlerMapping {
 
+	/**
+	 * 自己定义了一个Map变量, 作用:
+	 * 1. 放标配置
+	 * 2. 可以在注册前做一些预处理, 如确保所有url都以"/"开头, 将所有的url和Handler的对应关系放在里面，
+	 * 最后注册到父类的Map中
+	 */
 	private final Map<String, Object> urlMap = new LinkedHashMap<>();
 
 
@@ -135,7 +143,9 @@ public class SimpleUrlHandlerMapping extends AbstractUrlHandlerMapping {
 	 */
 	@Override
 	public void initApplicationContext() throws BeansException {
+		// 调用父类的初始化方法
 		super.initApplicationContext();
+		// 将配置的urlMap注册到AbstractUrlHandlerMapping的handlerMap中
 		registerHandlers(this.urlMap);
 	}
 
@@ -144,6 +154,7 @@ public class SimpleUrlHandlerMapping extends AbstractUrlHandlerMapping {
 	 * @param urlMap a Map with URL paths as keys and handler beans or bean names as values
 	 * @throws BeansException if a handler couldn't be registered
 	 * @throws IllegalStateException if there is a conflicting handler registered
+	 * 将配置的urlMap注册到AbstractUrlHandlerMapping的handlerMap中
 	 */
 	protected void registerHandlers(Map<String, Object> urlMap) throws BeansException {
 		if (urlMap.isEmpty()) {

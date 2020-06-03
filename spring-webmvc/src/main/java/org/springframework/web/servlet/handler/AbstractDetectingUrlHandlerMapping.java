@@ -30,6 +30,14 @@ import org.springframework.util.ObjectUtils;
  * @author Juergen Hoeller
  * @since 2.5
  * @see #determineUrlsForHandler
+ * 初始方法在initApplicationContext(), 重写了父类的方法,
+ * 将容器中的所有bean拿出来, 按一定的规则注册到父类的Map中
+ *
+ * 该类有3个子类:
+ * 	1. BeanNameUrlHandlerMapping: 检查beanName和alias是不是以"/"开头, 如果是则将其作为url, 里面只有一个determineUrlsForHandler方法
+ * 	2. DefaultAnnotationHandlerMapping已经标注了@Deprecated被弃用了
+ * 	3. AbstractControllerUrlHandlerMapping
+ * 	现在的版本只有BeanNameUrlHandlerMapping这个子类了
  */
 public abstract class AbstractDetectingUrlHandlerMapping extends AbstractUrlHandlerMapping {
 
@@ -66,18 +74,27 @@ public abstract class AbstractDetectingUrlHandlerMapping extends AbstractUrlHand
 	 * which no such URLs could be determined is simply not considered a handler.
 	 * @throws org.springframework.beans.BeansException if the handler couldn't be registered
 	 * @see #determineUrlsForHandler(String)
+	 * 根据配置的detectHand-lersInAn-cestorContexts参数从SpringMvc容器或者SpringMvc及其父容器中找到所有bean的beanName,
+	 * 然后用determineUrlsForHandler方法对每个beanName解析出对应的urls, 如果解析结果不为空则将解析出的urls和beanName(作为Handler)
+	 * 注册到父类的handlerMap, 注册方法依然是调用AbstractUrlHandlerMapping的registerHandler方法. 使用beanName解析urls的
+	 * determineUrlsForHandler方法是默认方法, 交给子类实现
 	 */
 	protected void detectHandlers() throws BeansException {
 		ApplicationContext applicationContext = obtainApplicationContext();
+		// 获取容器的所有bean名字
 		String[] beanNames = (this.detectHandlersInAncestorContexts ?
 				BeanFactoryUtils.beanNamesForTypeIncludingAncestors(applicationContext, Object.class) :
 				applicationContext.getBeanNamesForType(Object.class));
 
 		// Take any bean name that we can determine URLs for.
+		// 对每个beanName解析url, 如果能解析到就注册到父类的Map中
 		for (String beanName : beanNames) {
+			// 使用beanName解析url, 该方法是模板方法, 子类具体实现
 			String[] urls = determineUrlsForHandler(beanName);
+			// 如果能解析到url则注册到父类
 			if (!ObjectUtils.isEmpty(urls)) {
 				// URL paths found: Let's consider it a handler.
+				// 父类的registerHandler方法
 				registerHandler(urls, beanName);
 			}
 		}

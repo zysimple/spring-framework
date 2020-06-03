@@ -51,9 +51,16 @@ import org.springframework.web.servlet.HandlerExecutionChain;
  * @author Juergen Hoeller
  * @author Arjen Poutsma
  * @since 16.04.2003
+ * handlerMap的初始化是在子类的SimpleUrlHandlerMapping中, 通过调用本类的registerHandler方法, 将url对应的handler添加进来
+ *
+ * 首先在本类中设计了整体加架构, 并完成了查找Handler的具体逻辑, 其中需要用到一个保存url和Handler对应关系的Map, 这个Map
+ * 的内容是留给子类初始化的, 这里提供了注册(也就是初始化Map)的工具方法registerHandler. 初始化Map时分两种实现方式,
+ * 一种是通过手工在配置文件里注册(SimpleUrlHandlerMapping), 另一种是在Spring的容器里面找(AbstractDetectingUrlHandlerMapping),
+ * 第二种方式需要将容器里的bean按照特定的需求筛选出来, 并解析出一个url, 所以又根据这两个需求添加了两层子类
  */
 public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping implements MatchableHandlerMapping {
 
+	// 定义了处理"/"请求的处理器rootHandler
 	@Nullable
 	private Object rootHandler;
 
@@ -120,12 +127,15 @@ public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping i
 	@Override
 	@Nullable
 	protected Object getHandlerInternal(HttpServletRequest request) throws Exception {
+		// 获取请求路径, 比如http://localhost:8080/user/getUserList,那么返回的是/user/getUserList
 		String lookupPath = getUrlPathHelper().getLookupPathForRequest(request);
 		request.setAttribute(LOOKUP_PATH, lookupPath);
+		// 根据请求路径去handlerMap查找Handler
 		Object handler = lookupHandler(lookupPath, request);
 		if (handler == null) {
 			// We need to care for the default handler directly, since we need to
 			// expose the PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE for it as well.
+			// 定义了一个临时变量, 保存找到的原始Handler
 			Object rawHandler = null;
 			if ("/".equals(lookupPath)) {
 				rawHandler = getRootHandler();
@@ -135,11 +145,18 @@ public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping i
 			}
 			if (rawHandler != null) {
 				// Bean name or resolved handler?
+				// 如果是String类型则到容器中查找具体的Bean
 				if (rawHandler instanceof String) {
 					String handlerName = (String) rawHandler;
 					rawHandler = obtainApplicationContext().getBean(handlerName);
 				}
+				// 可以用来校验找到的Handler和request是否匹配, 是模板方法, 而且子类也没有使用
 				validateHandler(rawHandler, request);
+				/**
+				 * 用于给查找到的Handler注册两个拦截器, 主要作用是将于当前url实际匹配的Pattern,
+				 * 匹配条件和url模板参数等设置到request的属性里, 这样在后面的处理活成就可以直接从
+				 * request属性中获取, 而不需要再重新查找一遍了
+				 */
 				handler = buildPathExposingHandler(rawHandler, lookupPath, lookupPath, null);
 			}
 		}
@@ -161,10 +178,12 @@ public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping i
 	 */
 	@Nullable
 	protected Object lookupHandler(String urlPath, HttpServletRequest request) throws Exception {
-		// Direct match?
+		// Direct match? 直接匹配?
+		// 直接从Map中获取
 		Object handler = this.handlerMap.get(urlPath);
 		if (handler != null) {
 			// Bean name or resolved handler?
+			// 如果是String类型则到容器中查找具体的Bean
 			if (handler instanceof String) {
 				String handlerName = (String) handler;
 				handler = obtainApplicationContext().getBean(handlerName);
@@ -174,6 +193,7 @@ public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping i
 		}
 
 		// Pattern match?
+		// Pattern匹配, 比如使用带*号的模式与url进行匹配, this.handlerMap.keySet()里面是url
 		List<String> matchingPatterns = new ArrayList<>();
 		for (String registeredPattern : this.handlerMap.keySet()) {
 			if (getPathMatcher().match(registeredPattern, urlPath)) {
@@ -216,6 +236,7 @@ public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping i
 
 			// There might be multiple 'best patterns', let's make sure we have the correct URI template variables
 			// for all of them
+			// 之前是通过sort方法进行排序, 然后拿第一个作为bestPatternMatch的, 不过有可能有多个Pattern的顺序相投, 也就是sort方法返回0, 这里就是处理这种情况
 			Map<String, String> uriTemplateVariables = new LinkedHashMap<>();
 			for (String matchingPattern : matchingPatterns) {
 				if (patternComparator.compare(bestMatch, matchingPattern) == 0) {
@@ -311,6 +332,7 @@ public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping i
 	 * @param beanName the name of the handler bean
 	 * @throws BeansException if the handler couldn't be registered
 	 * @throws IllegalStateException if there is a conflicting handler registered
+	 * 注册Handler, url对应Handler, 该方法由子类来调用
 	 */
 	protected void registerHandler(String[] urlPaths, String beanName) throws BeansException, IllegalStateException {
 		Assert.notNull(urlPaths, "URL path array must not be null");
@@ -333,6 +355,7 @@ public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping i
 		Object resolvedHandler = handler;
 
 		// Eagerly resolve handler if referencing singleton via name.
+		// 如果Handler是String类型而且没有设置lazyInitHandlers则从SpringMvc容器中获取Handler
 		if (!this.lazyInitHandlers && handler instanceof String) {
 			String handlerName = (String) handler;
 			ApplicationContext applicationContext = obtainApplicationContext();
@@ -341,6 +364,7 @@ public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping i
 			}
 		}
 
+		// 如果该urlPath已经存在Handler了, 就报错
 		Object mappedHandler = this.handlerMap.get(urlPath);
 		if (mappedHandler != null) {
 			if (mappedHandler != resolvedHandler) {

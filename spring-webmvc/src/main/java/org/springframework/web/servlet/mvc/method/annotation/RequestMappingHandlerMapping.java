@@ -247,6 +247,8 @@ public class RequestMappingHandlerMapping extends RequestMappingInfoHandlerMappi
 	 * does not have a {@code @RequestMapping} annotation.
 	 * @see #getCustomMethodCondition(Method)
 	 * @see #getCustomTypeCondition(Class)
+	 * 根据@RequestMapping注释来找匹配条件的,如果没有@RequestMapping注释则返回null,
+	 * 如果有则根据注释的内容创建RequestMappingInfo类型的匹配条件并返回
 	 */
 	@Override
 	@Nullable

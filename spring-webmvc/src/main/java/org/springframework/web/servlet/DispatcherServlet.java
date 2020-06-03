@@ -979,8 +979,9 @@ public class DispatcherServlet extends FrameworkServlet {
 		}
 
 		// Make framework objects available to handlers and view objects.
-		// 对request设置一些属性
+		// 对request设置一些属性, 这些属性在handler和view中需要用到
 		request.setAttribute(WEB_APPLICATION_CONTEXT_ATTRIBUTE, getWebApplicationContext());	// webApplicationContext
+		// 下面三个和flashMap相关
 		request.setAttribute(LOCALE_RESOLVER_ATTRIBUTE, this.localeResolver);					// localeResolver
 		request.setAttribute(THEME_RESOLVER_ATTRIBUTE, this.themeResolver);						// theme-Resolver
 		request.setAttribute(THEME_SOURCE_ATTRIBUTE, getThemeSource());							// themeSource
@@ -1059,6 +1060,7 @@ public class DispatcherServlet extends FrameworkServlet {
 	 * 4. 返回结果（如果有 mv，进行视图渲染和跳转）
 	 */
 	protected void doDispatch(HttpServletRequest request, HttpServletResponse response) throws Exception {
+		// 实际处理时所用的request, 如果不是上传请求, 则直接使用接收到的request, 否则封装为上传类型的request
 		HttpServletRequest processedRequest = request;
 		/**
 		 * 主要负责请求拦截器的执行和处理, 但是它本身不处理请求, 只是将请求分配给链上注册处理器执行,
@@ -1066,12 +1068,18 @@ public class DispatcherServlet extends FrameworkServlet {
 		 * HandlerExecutionChain 维护了 HandlerInterceptor的集合, 可以向其中注册相应的拦截器
 		 */
 		HandlerExecutionChain mappedHandler = null;
+		// 是不是上传请求的标志
 		boolean multipartRequestParsed = false;
 
 		WebAsyncManager asyncManager = WebAsyncUtils.getAsyncManager(request);
 
 		try {
+			/**
+			 * 封装Model和View的容器, 此变量在整个Spring MVC处理的过程中承担非常重要角色, 如果
+			 * 使用过Spring MVC就不会对ModelAndView陌生
+			 */
 			ModelAndView mv = null;
+			// 处理请求过程中抛出的异常.需要注意的是它并不包含渲染过程抛出的异常
 			Exception dispatchException = null;
 
 			try {
@@ -1112,7 +1120,10 @@ public class DispatcherServlet extends FrameworkServlet {
 				if (asyncManager.isConcurrentHandlingStarted()) {
 					return;
 				}
-				// 视图名称转换(有可能需要加上前后缀),当 view 为空时，根据 request 设置默认 view
+				/**
+				 * 视图名称转换(有可能需要加上前后缀),当 view 为空时(比如Handler返回值为void)，
+				 * 根据 request 设置默认 view, 设置默认view的过程中使用到了ViewNameTranslator.
+				 */
 				applyDefaultViewName(processedRequest, mv);
 				// 执行相应 Interceptor 的 postHandler
 				mappedHandler.applyPostHandle(processedRequest, response, mv);
@@ -1173,7 +1184,7 @@ public class DispatcherServlet extends FrameworkServlet {
 			@Nullable Exception exception) throws Exception {
 
 		boolean errorView = false;
-
+		// 如果请求处理过程中有异常抛出则处理异常
 		if (exception != null) {
 			if (exception instanceof ModelAndViewDefiningException) {
 				logger.debug("ModelAndViewDefiningException encountered", exception);
@@ -1186,7 +1197,7 @@ public class DispatcherServlet extends FrameworkServlet {
 			}
 		}
 
-		// Did the handler return a view to render?
+		// Did the handler return a view to render? 渲染页面
 		if (mv != null && !mv.wasCleared()) {
 			render(mv, request, response);
 			if (errorView) {
@@ -1201,9 +1212,11 @@ public class DispatcherServlet extends FrameworkServlet {
 
 		if (WebAsyncUtils.getAsyncManager(request).isConcurrentHandlingStarted()) {
 			// Concurrent handling started during a forward
+			// 如果启动了异步处理则返回
 			return;
 		}
 
+		// 发出请求处理完成的通知, 触发Interceptor的afterCompletion
 		if (mappedHandler != null) {
 			// Exception (if any) is already handled..
 			mappedHandler.triggerAfterCompletion(request, response, null);
@@ -1340,6 +1353,7 @@ public class DispatcherServlet extends FrameworkServlet {
 	protected HandlerAdapter getHandlerAdapter(Object handler) throws ServletException {
 		if (this.handlerAdapters != null) {
 			for (HandlerAdapter adapter : this.handlerAdapters) {
+				// 判断是否可以使用该适配器
 				if (adapter.supports(handler)) {
 					return adapter;
 				}

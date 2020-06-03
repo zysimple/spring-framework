@@ -59,6 +59,7 @@ public interface HandlerAdapter {
 	 * }
 	 * @param handler the handler object to check
 	 * @return whether or not this object can use the given handler
+	 * 判断是否可以使用某个Handle
 	 */
 	boolean supports(Object handler);
 
@@ -73,6 +74,7 @@ public interface HandlerAdapter {
 	 * @throws Exception in case of errors
 	 * @return a ModelAndView object with the name of the view and the required
 	 * model data, or {@code null} if the request has been handled directly
+	 * 是用来具体使用Handle干活
 	 */
 	@Nullable
 	ModelAndView handle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception;
@@ -85,6 +87,7 @@ public interface HandlerAdapter {
 	 * @return the lastModified value for the given handler
 	 * @see javax.servlet.http.HttpServlet#getLastModified
 	 * @see org.springframework.web.servlet.mvc.LastModified#getLastModified
+	 * 是获取资源的Last-Modified, Last-Modified是资源最后一次修改的时间
 	 */
 	long getLastModified(HttpServletRequest request, Object handler);
 
